@@ -1,16 +1,14 @@
-import { DateTime } from "luxon";
 import { requireIdentity } from "@/lib/auth";
 import { configured } from "@/lib/config";
 import { query, rpc, schedule } from "@/lib/repositories/studio";
-import {
-  displayClock,
-  displayTime,
-  studioDate,
-  statusLabels,
-} from "@/lib/domain/booking";
-import { adminChange, changeStatus } from "@/lib/actions";
+import { displayTime } from "@/lib/domain/booking";
+import { adminChange } from "@/lib/actions";
 import Submit from "@/components/Submit";
 import Setup from "@/components/Setup";
+import PeriodControls from "@/components/PeriodControls";
+import { periodHref } from "@/lib/domain/period-links";
+import AdminSchedule from "@/components/AdminSchedule";
+import { schedulePeriod } from "@/lib/domain/timetable";
 function TrainerSelect({ trainers }) {
   return (
     <label>
@@ -28,7 +26,7 @@ function TrainerSelect({ trainers }) {
 export default async function Admin({ searchParams }) {
   if (!configured())
     return (
-      <section className="section">
+      <section className="section admin-page">
         <Setup />
       </section>
     );
@@ -38,14 +36,12 @@ export default async function Admin({ searchParams }) {
     ]),
     p = await searchParams,
     admin = profile.role === "admin";
-  const trainers = await query("trainers"),
-    date = DateTime.fromISO(p.date || studioDate(), {
-      zone: "Europe/Belgrade",
-    }),
-    start = date.isValid
-      ? date.startOf("day")
-      : DateTime.now().setZone("Europe/Belgrade").startOf("day"),
-    end = start.plus({ days: p.view === "week" ? 7 : 1 });
+  const trainers = await query("trainers");
+  const { selectedDate, view, start, end, days } = schedulePeriod(
+    p.date,
+    p.view,
+  );
+
   const selectedTrainer = trainers.some((t) => t.id === p.trainer)
     ? p.trainer
     : null;
@@ -55,18 +51,24 @@ export default async function Admin({ searchParams }) {
     end.toISO(),
     selectedTrainer,
   );
-  const hours = admin ? await query("working_hours") : [],
+  const hours = await query("working_hours"),
     off = admin ? await query("time_off") : [],
     clients = admin ? await query("profiles") : [];
   const slots =
-    admin && p.trainer
+    admin && selectedTrainer
       ? await rpc("available_slots", {
-          p_trainer: p.trainer,
-          p_date: start.toISODate(),
+          p_trainer: selectedTrainer,
+          p_date: selectedDate.toISODate(),
         })
       : [];
+  const returnTo = periodHref(
+    "/administracija",
+    selectedDate.toISODate(),
+    view,
+    selectedTrainer,
+  );
   return (
-    <section className="section">
+    <section className="section admin-page">
       <p className="eyebrow">{admin ? "ADMINISTRACIJA" : "MOJ RASPORED"}</p>
       <h1>Pregled studija</h1>
       {p.message && (
@@ -74,85 +76,26 @@ export default async function Admin({ searchParams }) {
           {p.message}
         </div>
       )}
-      <form className="filter">
-        <label>
-          Od datuma
-          <input
-            type="date"
-            name="date"
-            defaultValue={start.toISODate()}
-            required
-          />
-        </label>
-        <label>
-          Prikaz
-          <select name="view" defaultValue={p.view || "day"}>
-            <option value="day">Dan</option>
-            <option value="week">Sedam dana</option>
-          </select>
-        </label>
-        <label>
-          Instruktorka
-          <select name="trainer" defaultValue={p.trainer || ""}>
-            <option value="">Sve dostupne</option>
-            {trainers.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Submit>Prikaži</Submit>
-      </form>
-      <div className="schedule">
-        {Array.from({ length: p.view === "week" ? 7 : 1 }, (_, i) =>
-          start.plus({ days: i }),
-        ).map((day) => (
-          <section className="day" key={day.toISODate()}>
-            <h3>{day.toFormat("dd.MM.yyyy.")}</h3>
-            {appointments
-              .filter(
-                (a) =>
-                  DateTime.fromISO(a.starts_at)
-                    .setZone("Europe/Belgrade")
-                    .toISODate() === day.toISODate(),
-              )
-              .map((a) => (
-                <article className="schedule-item" key={a.id}>
-                  <strong>
-                    {displayClock(a.starts_at)} · {a.trainers.name}
-                  </strong>
-                  <p>
-                    {a.profiles?.full_name || a.guest_name}
-                    <br />
-                    {a.profiles?.phone || a.guest_contact}
-                  </p>
-                  <span className="badge">{statusLabels[a.status]}</span>
-                  {admin && a.status === "booked" && (
-                    <form action={changeStatus} className="stack">
-                      <input type="hidden" name="id" value={a.id} />
-                      <label>
-                        Status
-                        <select name="status">
-                          <option value="cancelled">Otkaži</option>
-                          <option value="completed">Završen</option>
-                          <option value="no_show">Nije došao/la</option>
-                        </select>
-                      </label>
-                      <Submit>Sačuvaj</Submit>
-                    </form>
-                  )}
-                </article>
-              ))}
-            {!appointments.some(
-              (a) =>
-                DateTime.fromISO(a.starts_at)
-                  .setZone("Europe/Belgrade")
-                  .toISODate() === day.toISODate(),
-            ) && <p>Nema rezervacija.</p>}
-          </section>
-        ))}
-      </div>
+      <PeriodControls
+        basePath="/administracija"
+        selectedDate={selectedDate}
+        view={view}
+        trainers={trainers}
+        trainer={selectedTrainer || ""}
+      />
+      <AdminSchedule
+        appointments={appointments}
+        hours={hours.filter(
+          (w) => !selectedTrainer || w.trainer_id === selectedTrainer,
+        )}
+        days={days}
+        trainers={trainers}
+        admin={admin}
+        returnTo={returnTo}
+        now={new Date()}
+        trainerId={selectedTrainer || ""}
+      />
+
       {admin && (
         <>
           <h2 className="admin-heading">Upravljanje</h2>
@@ -165,7 +108,11 @@ export default async function Admin({ searchParams }) {
               </p>
               <form action={adminChange} className="stack">
                 <input type="hidden" name="operation" value="manual" />
-                <input type="hidden" name="trainer" value={p.trainer || ""} />
+                <input
+                  type="hidden"
+                  name="trainer"
+                  value={selectedTrainer || ""}
+                />
                 <label>
                   Slobodan termin
                   <select name="start" required>

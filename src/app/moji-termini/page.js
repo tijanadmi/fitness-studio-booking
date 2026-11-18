@@ -1,9 +1,10 @@
 import { ownAppointments } from "@/lib/repositories/studio";
 import { requireIdentity } from "@/lib/auth";
 import { configured } from "@/lib/config";
-import { displayTime, canCancel, statusLabels } from "@/lib/domain/booking";
-import { changeStatus } from "@/lib/actions";
-import Submit from "@/components/Submit";
+import { schedulePeriod } from "@/lib/domain/timetable";
+import { periodHref } from "@/lib/domain/period-links";
+import PeriodControls from "@/components/PeriodControls";
+import PersonalSchedule from "@/components/PersonalSchedule";
 import Setup from "@/components/Setup";
 import Link from "next/link";
 export default async function Appointments({ searchParams }) {
@@ -13,51 +14,47 @@ export default async function Appointments({ searchParams }) {
         <Setup />
       </section>
     );
-  const { user, client } = await requireIdentity();
-  const data = await ownAppointments(client, user.id);
   const p = await searchParams;
+  const { selectedDate, view, start, end, days } = schedulePeriod(
+    p.date,
+    p.view,
+  );
+  const returnTo = periodHref("/moji-termini", selectedDate.toISODate(), view);
+  const { user, client } = await requireIdentity(returnTo);
+  const data = await ownAppointments(
+    client,
+    user.id,
+    start.toISO(),
+    end.toISO(),
+  );
   return (
-    <section className="section">
-      <p className="eyebrow">VAŠ RASPORED</p>
-      <h1>Moji termini</h1>
-      <Link className="button" href="/zakazivanje">
-        Zakaži novi trening ↗
-      </Link>
+    <section className="section my-appointments-page">
+      <div className="my-page-heading">
+        <div>
+          <p className="eyebrow">VREME KOJE ČUVATE ZA SEBE</p>
+          <h1>Moji termini</h1>
+        </div>
+        <Link className="button" href="/zakazivanje">
+          Zakaži novi trening ↗
+        </Link>
+      </div>
       {p.message && (
         <p className="notice" role="status">
           {p.message}
         </p>
       )}
-      {["Budući", "Prethodni"].map((title, i) => {
-        const rows = data.filter(
-          (a) => new Date(a.starts_at) > new Date() === (i === 0),
-        );
-        return (
-          <section className="appointment-group" key={title}>
-            <h2>{title} termini</h2>
-            {!rows.length ? (
-              <p>Ovde još nema termina.</p>
-            ) : (
-              rows.map((a) => (
-                <article className="appointment" key={a.id}>
-                  <div>
-                    <h3>{a.trainers.name}</h3>
-                    <p>{displayTime(a.starts_at)} · 60 min</p>
-                    <span className="badge">{statusLabels[a.status]}</span>
-                  </div>
-                  {a.status === "booked" && canCancel(a.starts_at) && (
-                    <form action={changeStatus}>
-                      <input type="hidden" name="id" value={a.id} />
-                      <input type="hidden" name="status" value="cancelled" />
-                      <Submit>Otkaži termin</Submit>
-                    </form>
-                  )}
-                </article>
-              ))
-            )}
-          </section>
-        );
-      })}
+      <PeriodControls
+        basePath="/moji-termini"
+        selectedDate={selectedDate}
+        view={view}
+      />
+      <PersonalSchedule
+        appointments={data}
+        days={days}
+        view={view}
+        returnTo={returnTo}
+        now={new Date()}
+      />
     </section>
   );
 }

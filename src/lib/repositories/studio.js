@@ -25,15 +25,18 @@ export async function rpc(name, args) {
   }
   return result.data;
 }
-export async function ownAppointments(client, userId) {
-  const { data, error } = await client
+export async function ownAppointments(client, userId, start, end) {
+  let request = client
     .from("appointments")
     .select("*,trainers(name)")
-    .eq("client_id", userId)
-    .order("starts_at");
+    .eq("client_id", userId);
+  if (start) request = request.gte("starts_at", start);
+  if (end) request = request.lt("starts_at", end);
+  const { data, error } = await request.order("starts_at");
   if (error) throw new Error("Termini nisu dostupni.");
   return data;
 }
+
 export async function schedule(client, start, end, trainer) {
   let request = client
     .from("appointments")

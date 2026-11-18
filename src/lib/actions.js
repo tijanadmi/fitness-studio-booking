@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "./supabase/server";
 import { requireIdentity } from "./auth";
 import { rpc, updateAppointmentStatus } from "./repositories/studio";
-import { safeNext } from "./domain/booking";
+import { safeNext, ZONE } from "./domain/booking";
+import { periodHref } from "./domain/period-links";
 import { authErrorMessage } from "./domain/auth-errors";
 function value(form, key) {
   return String(form.get(key) || "").trim();
@@ -73,12 +74,24 @@ export async function book(form) {
   }
   if (message) back(next, message);
   revalidatePath("/moji-termini");
-  redirect("/moji-termini?message=Trening%20je%20zakazan.");
+  const { DateTime } = await import("luxon");
+  const bookedDate = DateTime.fromISO(value(form, "start"), {
+    zone: ZONE,
+  }).toISODate();
+  back(periodHref("/moji-termini", bookedDate, "week"), "Trening je zakazan.");
 }
 export async function changeStatus(form) {
-  const session = await requireIdentity(),
-    path =
-      session.profile.role === "admin" ? "/administracija" : "/moji-termini";
+  const session = await requireIdentity();
+  const requestedReturn = safeNext(value(form, "return_to"));
+  const permittedPaths =
+    session.profile.role === "admin"
+      ? ["/administracija", "/moji-termini"]
+      : ["/moji-termini"];
+  const path = permittedPaths.includes(requestedReturn.split("?")[0])
+    ? requestedReturn
+    : session.profile.role === "admin"
+      ? "/administracija"
+      : "/moji-termini";
   const status = value(form, "status");
   if (status !== "cancelled" && session.profile.role !== "admin")
     back(path, "Nemate dozvolu.");
@@ -94,7 +107,7 @@ export async function changeStatus(form) {
         ? error.message.split("RULE:")[1]
         : "Izmena nije uspela.",
     );
-  revalidatePath(path);
+  revalidatePath(path.split("?")[0]);
   back(path, "Status je ažuriran.");
 }
 export async function adminChange(form) {

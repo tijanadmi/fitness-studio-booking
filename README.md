@@ -68,9 +68,29 @@ Pre objave dostavite stvarni naziv, kontakt, lokaciju, cene, fotografije i biogr
 ## Izvršene provere
 
 - JavaScript `checkJs` provera tipova i ESLint: prošli.
-- Osam testova domenskih pravila i Auth poruka: prošlo.
+- Dvadeset testova domenskih pravila, rasporeda i Auth poruka: prošlo.
 - Stvarna lokalna PostgreSQL 17.11 baza: migracija i prošireni testovi konkurentnosti, RLS pristupa, otkazivanja, konfliktnih izmena i DST prelaza prošli. Udaljena baza nije menjana.
 - Produkcioni Webpack build: prošao.
 - HTTP provera početne, prijave, zakazivanja, administracije i mojih termina bez konfiguracije: sve vraćaju 200 i odgovarajući sadržaj/poruku za podešavanje.
 - `npm audit --omit=dev`: bez prijavljenih ranjivosti. Puni audit prijavljuje 8 umerenih upozorenja u razvojnim ESLint/TypeScript-ESLint zavisnostima, vezanih za njihov minimatch; nije korišćen prisilni downgrade Next-a koji audit predlaže.
 - Kompletna registracija/prijava, dostava email poruka i rezervacije kroz Supabase HTTP API nisu proverene bez konfigurisanog Supabase projekta. SQL pristup je proveren uz lokalne Auth identitete; vizuelni pregled u stvarnom mobilnom pregledaču ostaje za proveru.
+
+## Vizuelni stil
+
+Paleta i naslovna fotografija su iz Yogalax-a; kolaž, foto-sekcija, ikonice i stil formi prilagođeni su iz Zogin-a. Poreklo materijala i atribucija autora navedeni su u [THIRD_PARTY_ASSETS.md](THIRD_PARTY_ASSETS.md). Sve fotografije služe kao ilustracija. Forma na početnoj vodi na stvarni pregled dostupnosti; registracija i prijava koriste postojeće Supabase akcije.
+
+Za izolovani produkcioni build dok radi dev server može se postaviti NEXT_OUTPUT_DIR=.next-design-check. Podrazumevani izlaz ostaje .next.
+
+## Tabelarni admin raspored
+
+Administracija podrazumevano prikazuje kalendarsku nedelju od ponedeljka do nedelje. Dani su u kolonama, lokalna vremena početka u redovima, a kartice sadrže ime i prezime klijenta ili ime telefonskog gosta i instruktorku. Istovremene rezervacije različitih instruktorki prikazuju se zajedno u istoj ćeliji i razlikuju bojom i nazivom instruktorke. Rad vikendom ostaje podržan. Na telefonu je dostupno horizontalno pomeranje uz fiksiranu kolonu sa satnicom.
+
+U glavnoj tabeli su samo rezervacije sa statusom booked. Otkazani termini i završeni treninzi/nedolasci imaju zasebne, podrazumevano sklopljene evidencije za izabrani period i filter. Podaci se ne brišu. Kontakt i statusne akcije otvaraju se u kartici kroz „Detalji i status“. Posle promene statusa zadržavaju se datum, prikaz i izabrana instruktorka.
+
+Svi prikazi vremena koriste Europe/Belgrade bez tekstualnog UTC pomeraja. Timestamptz čuvanje i obrada DST prelaza nisu menjani. Testovi rasporeda pokrivaju i oba različita trenutka u ponovljenom jesenjem satu. Promene SQL šeme nisu potrebne.
+
+## Dnevni i nedeljni prikaz ličnih termina
+
+Administracija i „Moji termini“ dele jasne linkove Dan/Nedelja i navigaciju prethodni period / danas / sledeći period. Izbor datuma automatski otvara taj pojedinačni dan; klik na zaglavlje dana u nedeljnom prikazu takođe vodi na dnevni prikaz, uz očuvanje filtera instruktorke.
+
+„Moji termini“ prikazuju nedelju kroz kartice po danima, a pojedinačni dan kao listu sa satnicom. Zakazani, završeni treninzi i nedolasci imaju vidljiv status. Otkazani su u sklopljenoj evidenciji izabranog perioda. Upit u bazu ograničen je na autentifikovanog korisnika i izabrani period. Nova rezervacija otvara odgovarajuću nedelju; posle otkazivanja ostaje izabrani datum i prikaz.

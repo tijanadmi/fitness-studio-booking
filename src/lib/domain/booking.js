@@ -18,17 +18,20 @@ export function studioDate() {
 export function displayTime(value) {
   return DateTime.fromISO(value, { zone: ZONE })
     .setLocale("sr-Latn")
-    .toFormat("dd.MM.yyyy. HH:mm '(UTC'ZZ')'");
+    .toFormat("dd.MM.yyyy. HH:mm");
 }
 export function displayClock(value) {
-  return DateTime.fromISO(value, { zone: ZONE }).toFormat("HH:mm '(UTC'ZZ')'");
+  return DateTime.fromISO(value, { zone: ZONE }).toFormat("HH:mm");
 }
 export function safeNext(value) {
   return typeof value === "string" &&
     value.startsWith("/") &&
     !value.startsWith("//") &&
     !value.includes("\\") &&
-    !Array.from(value).some(character=>character.charCodeAt(0)<=32 || character.charCodeAt(0)===127)
+    !Array.from(value).some(
+      (character) =>
+        character.charCodeAt(0) <= 32 || character.charCodeAt(0) === 127,
+    )
     ? value
     : "/zakazivanje";
 }
